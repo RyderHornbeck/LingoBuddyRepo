@@ -105,6 +105,7 @@ export default function Home() {
         if (current) {
           const phoneme = current.char.toUpperCase();
           const visemeKey = phonemeToViseme[phoneme] || "Neutral";
+
           setCurrentViseme(visemeKey);
         } else {
           setCurrentViseme("Neutral");

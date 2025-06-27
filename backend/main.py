@@ -7,14 +7,20 @@ import websockets
 from fastapi import FastAPI, UploadFile, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-
+from pydub import AudioSegment
+import io
+import re
+from openai import OpenAI
 
 OPENAI_KEY = "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"
 ELEVEN_KEY = "sk_951d9a2de7e34e9a3bd33837f5685dbf70d65150ece70e56"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
 
-openai.api_key = OPENAI_KEY
-client = openai
+
+client = OpenAI(api_key=OPENAI_KEY)
+
+
+
 
 app = FastAPI()
 
@@ -25,6 +31,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def approximate_visemes(text: str, duration: float):
+    words = re.findall(r"\w+", text.upper())
+    total_chars = sum(len(w) for w in words)
+    if total_chars == 0:
+        return []
+
+    time_per_char = duration / total_chars
+    visemes = []
+    t = 0.0
+
+    for word in words:
+        for char in word:
+            visemes.append({
+                "char": char,
+                "start": round(t, 2),
+                "end": round(t + time_per_char, 2)
+            })
+            t += time_per_char
+
+    return visemes
 
 class AudioLanguageTutor:
     def __init__(self, client):
@@ -38,7 +65,7 @@ class AudioLanguageTutor:
 
         transcript = self.transcribe_audio(temp_audio_path)
         ai_response = self.generate_learning_response(transcript, native_lang, learning_lang)
-        audio_b64, visemes = await self.stream_tts_with_visemes(ai_response)
+        audio_b64, duration, visemes = await self.stream_tts(ai_response)
 
         return {
             "transcript": transcript,
@@ -69,67 +96,54 @@ class AudioLanguageTutor:
 
         return response.choices[0].message.content
 
-    async def stream_tts_with_visemes(self, text: str):
-            VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
-            uri = (
-                f"wss://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}/stream-input"
-                f"?auto_mode=true&output_format=mp3_44100_128&sync_alignment=true"
-            )
+    async def stream_tts(self, text: str):
+        uri = (
+            f"wss://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}/stream-input"
+            f"?auto_mode=true&output_format=mp3_44100_128"
+        )
 
-            audio_data = b""
-            visemes = []
+        audio_data = b""
 
-            async with websockets.connect(
-                uri,
-                extra_headers={"xi-api-key": ELEVEN_KEY}
-            ) as ws:
-                # Valid initial payload — only supported fields
-                await ws.send(json.dumps({
-                    "text": text,
-                    "voice_settings": {
-                        "stability": 0.5,
-                        "similarity_boost": 0.75
-                    },
-                    "generation_config": {
-                        "chunk_length_schedule": [120, 160, 250]
-                    }
-                }))
+        async with websockets.connect(
+            uri,
+            extra_headers={"xi-api-key": ELEVEN_KEY}
+        ) as ws:
+            await ws.send(json.dumps({
+                "text": text,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75
+                },
+                "generation_config": {
+                    "chunk_length_schedule": [120, 160, 250]
+                }
+            }))
 
-                await ws.send(json.dumps({"text": ""}))  # End of stream
+            await ws.send(json.dumps({"text": ""}))  # End of stream
 
-                async for msg in ws:
-                    print("ELEVEN:", msg)
-                    data = json.loads(msg)
+            async for msg in ws:
+                data = json.loads(msg)
 
-                    # Safely collect audio chunks
-                    if "audio" in data and data["audio"]:
-                        try:
-                            audio_data += base64.b64decode(data["audio"])
-                        except Exception as e:
-                            print("Decode error:", e)
+                if "audio" in data and data["audio"]:
+                    try:
+                        audio_data += base64.b64decode(data["audio"])
+                    except Exception as e:
+                        print("Decode error:", e)
 
-                    # Collect visemes
-                    alignment = data.get("normalizedAlignment") or {}
-                    if all(k in alignment for k in ("chars", "charStartTimesMs", "charsDurationsMs")):
-                        for ch, st, dr in zip(alignment["chars"], alignment["charStartTimesMs"], alignment["charsDurationsMs"]):
-                            visemes.append({
-                                "char": ch,
-                                "start": round(st / 1000, 3),
-                                "end": round((st + dr) / 1000, 3)
-                            })
+                if data.get("isFinal"):
+                    break
 
-                    if data.get("isFinal"):
-                        break
+        if not audio_data:
+            print("No audio returned by ElevenLabs.")
+            return "", 0.0, []
 
-            # Return fallback if nothing generated
-            if not audio_data:
-                print("No audio returned by ElevenLabs.")
-                return "", []
-            print("This is VISEMSe", visemes)
-            audio_b64 = base64.b64encode(audio_data).decode("utf-8")
-            return audio_b64, visemes
+        # Get duration using pydub
+        audio = AudioSegment.from_file(io.BytesIO(audio_data), format="mp3")
+        duration_seconds = round(len(audio) / 1000.0, 2)  # ms to sec
 
-
+        visemes = approximate_visemes(text, duration_seconds)
+        audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+        return audio_b64, duration_seconds, visemes
 
 
 tutor = AudioLanguageTutor(client)
