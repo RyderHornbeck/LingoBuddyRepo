@@ -1,41 +1,63 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+*.pyo
+*.pyd
+*.pdb
+.env
+.venv
+env/
+ENV/
+env.bak/
+venv/
+backend/env/
 
-# dependencies
-/node_modules
-/.pnp
+# === Node ===
+node_modules/
+frontend/node_modules/
+
+# === Yarn & PNPM ===
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.pnpm-debug.log*
 
-# testing
-/coverage
+# === Next.js ===
+.next/
+out/
 
-# next.js
-/.next/
-/out/
+# === Build/Prod ===
+build/
+dist/
+.vercel/
 
-# production
-/build
+# === Testing ===
+coverage/
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# === Logs ===
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# === Env files ===
 .env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
 next-env.d.ts
+*.tsbuildinfo
+
+# === OS-specific ===
+.DS_Store
+
+# === Certificates / Keys ===
+*.pem
+
+# Enforce LF for all text files
+* text=auto eol=lf
+
+# Prevent Git from tracking env folder at all (safe with .gitignore)
+backend/env/** -text
