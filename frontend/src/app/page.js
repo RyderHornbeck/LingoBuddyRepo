@@ -1,10 +1,10 @@
 "use client";
-
 import { useState, useRef, useEffect } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FaMicrophone } from "react-icons/fa";
 import { FaStop } from "react-icons/fa";
 import { GoSidebarCollapse } from "react-icons/go";
+import { FaRegEdit } from "react-icons/fa";
 import { GoSidebarExpand } from "react-icons/go";
 import { FaPencilAlt } from "react-icons/fa";
 
@@ -118,14 +118,34 @@ const translations = {
     stopRecording: "Aufnahme stoppen",
     currentViseme: "Aktueller Viseme:",
   },
+  ja: {
+    welcome: "Lingo Buddy へようこそ",
+    startSpeaking: "話し始めて、学習言語でフィードバックを受け取りましょう！",
+    nativeLangLabel: "母国語",
+    learningLangLabel: "学習言語",
+    startRecording: "録音を開始",
+    stopRecording: "録音を停止",
+    currentViseme: "現在のビセーム：",
+  },
+  zh: {
+    welcome: "欢迎来到 Lingo Buddy",
+    startSpeaking: "开始说话，并用你正在学习的语言获得反馈！",
+    nativeLangLabel: "母语",
+    learningLangLabel: "学习语言",
+    startRecording: "开始录音",
+    stopRecording: "停止录音",
+    currentViseme: "当前的口型：",
+  },
 };
 
 // Helper to convert nativeLang string to language code for translations
 const langNameToCode = {
   English: "en",
   Spanish: "es",
-  France: "fr",
+  French: "fr",
   Dutch: "de",
+  Japanese: "ja",
+  Mandarin: "zh"
 };
 
 export default function Home() {
@@ -141,6 +161,8 @@ export default function Home() {
   const [isOpen, setIsOpen] = useState(false);
   const [showTitle, setShowTitle] = useState(true);
   const [convoNumber, setConvoNumber] = useState(0);
+  const [editConvo, setEditConvo] = useState(false);
+  const [convoTitles, setConvoTitles] = useState([]);
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -151,7 +173,7 @@ export default function Home() {
     "FrenchC.png",
     "DutchC.png",
     "JapaneseC.png",
-    "ChineseC.png",
+    "MandarinC.png",
   ];
 
   // Determine current translation object from nativeLang
@@ -192,6 +214,7 @@ export default function Home() {
     formData.append("audio", blob, "input.mp3");
     formData.append("native_language", nativeLang);
     formData.append("learning_language", learningLang);
+    formData.append("MessageIndex", convoNumber);
 
     const response = await fetch("http://localhost:8000/process-audio/", {
       method: "POST",
@@ -281,8 +304,8 @@ export default function Home() {
         setNativeLang("Japanese");
         break;
       case "zh":
-        setNativeSrc("chinese.png");
-        setNativeLang("Chinese");
+        setNativeSrc("mandarin.png");
+        setNativeLang("Mandarin");
         break;
     }
   };
@@ -294,7 +317,7 @@ export default function Home() {
         setLearnSrc("united-kingdom.png");
         setLearningLang("English");
         setAnimationIndexL(0);
-        setTutorName("Emily");
+        setTutorName("John");
         break;
       case "es":
         setLearnSrc("spain.png");
@@ -321,8 +344,8 @@ export default function Home() {
         setTutorName("Haruka");
         break;
       case "zh":
-        setLearnSrc("chinese.png");
-        setLearningLang("Chinese");
+        setLearnSrc("mandarin.png");
+        setLearningLang("Mandarin");
         setAnimationIndexL(5);
         setTutorName("Li Wei");
         break;
@@ -338,12 +361,17 @@ const handleSubmit = (e) => {
     learnflagSrc: learnflagSrc,
     animationIndexLearned: animationIndexLearned
   }
+  const newIndex = conversations.length;
  setConversations((prev) => {
   const newConversations = [...prev, newConvo];
-  setConvoNumber(newConversations.length - 1);
+  
   return newConversations;
 });
+setConvoNumber(newIndex);
 setShowTitle(false);
+setConvoTitles((prev)  => {
+  return [...prev,"Chat " + (prev.length+1) ];
+})
 };
   const newChat = (e) => {
     e.preventDefault();
@@ -398,20 +426,47 @@ setShowTitle(false);
             new chat
           </button>
           </form>
-            {conversations.slice().reverse().map((chat, index) => {
-              const originalIndex = conversations.length - 1 - index;
-   return  <button
-      key={originalIndex}
+{convoTitles.slice().reverse().map((chat, index) => {
+  const originalIndex = conversations.length - 1 - index;
 
-      onClick={() => selectChat(originalIndex)}
-      className={`m-2 px-4 py-2 w-full text-left rounded-md transition-colors ${
-        originalIndex === convoNumber
-          ? "bg-gray-400 text-white"
-          : "bg-gray-100 hover:bg-gray-200"
-      }`}
-    >
-      Chat {originalIndex + 1}
-    </button>
+  return editConvo === originalIndex ? (
+    <div key={originalIndex} className="m-2 px-4 py-2 w-4/5">
+      <input
+        className="w-full border rounded px-2 py-1"
+        defaultValue={`Chat ${originalIndex + 1}`}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      e.preventDefault(); // prevent form submission if inside a form
+      setEditConvo(false); // exit edit mode
+      setConvoTitles((prev) => {
+        const updated = [...prev];
+        updated[originalIndex] = e.target.value;
+        return updated;
+      })
+    }
+  }}
+      />
+    </div>
+  ) : (
+    <div key={originalIndex} className="flex items-center justify-between w-4/5 m-2">
+      <button
+        onClick={() => selectChat(originalIndex)}
+        className={`flex-1 text-left px-4 py-2 rounded-md transition-colors ${
+          originalIndex === convoNumber
+            ? "bg-gray-400 text-white"
+            : "bg-gray-100 hover:bg-gray-200"
+        }`}
+      >
+        {convoTitles[originalIndex]}
+      </button>
+      <button
+        onClick={() => setEditConvo(originalIndex)}
+        className="ml-2 text-gray-700 hover:text-black"
+      >
+        <FaRegEdit size={20} />
+      </button>
+    </div>
+  );
 })}
         </div>
         <button
@@ -461,7 +516,7 @@ setShowTitle(false);
                   <option value="fr">Français</option>
                   <option value="de">Deutsch</option>
                   <option value="ja">Japanese</option>
-                  <option value="zh">Chinese</option>
+                  <option value="zh">Mandarin</option>
                 </select>
                 <select
                   className="px-3 py-2 border border-gray-300 rounded-md text-base"
@@ -473,7 +528,7 @@ setShowTitle(false);
                   <option value="fr">Français</option>
                   <option value="de">Deutsch</option>
                   <option value="ja">Japanese</option>
-                  <option value="zh">Chinese</option>
+                  <option value="zh">Mandarin</option>
                 </select>
                 <button
                   type="submit"
@@ -486,7 +541,7 @@ setShowTitle(false);
           </div> }
 
           {/* Chat Area */}
-         {!showTitle && <div className="flex-1 w-full max-w-2xl m-6 pb-6">
+         {!showTitle && <div className="flex-1 min-w-4/5 max-w-2xl m-6 pb-6">
             <div className="bg-gray-50 rounded-xl border border-gray-300 h-156 overflow-y-auto p-4 space-y-4">
               {conversations[convoNumber].messages.length === 0 ? (
                 <div className="text-center text-gray-500 mt-20">
@@ -528,6 +583,7 @@ setShowTitle(false);
 
         {/* Right Panel - Avatar */}
         <div className="w-1/2 flex flex-col items-center justify-center">
+              <h2 className="font-bold text-xl">{tutorName} the {learningLang} tutor</h2>
           <div className="relative w-80 h-80 lg:w-96 lg:h-96 mb-8">
             <img
               src={`${animations[animationIndexLearned]}`}
@@ -542,7 +598,7 @@ setShowTitle(false);
           </div>
 
           {/* Recording Button */}
-          <button
+         {!showTitle && <button
             onClick={isRecording ? stopRecording : startRecording}
             className={`border-2 border-black rounded-full p-6 mb-4 transition-colors duration-200 ${
               isRecording
@@ -555,7 +611,7 @@ setShowTitle(false);
             ) : (
               <FaMicrophone className="w-8 h-8" />
             )}
-          </button>
+          </button> }
         </div>
       </main>
     </div>
