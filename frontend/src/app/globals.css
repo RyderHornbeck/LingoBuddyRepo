@@ -27,5 +27,5 @@ body {
 html, body, #__next {
   height: 100%;
   margin: 0;
-  overflow: hidden; /* prevent scroll */
+  overflow-x: hidden; /* prevent scroll */
 }

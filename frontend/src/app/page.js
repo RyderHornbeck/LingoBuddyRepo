@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { FaMicrophone } from "react-icons/fa";
+import { FaStop } from "react-icons/fa";
+import { GoSidebarCollapse } from "react-icons/go";
+import { GoSidebarExpand } from "react-icons/go";
+import { FaPencilAlt } from "react-icons/fa";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -74,7 +80,7 @@ const phonemeToViseme = {
 // Translation object keyed by language code
 const translations = {
   en: {
-    welcome: "Welcome to GlobalLang",
+    welcome: "Welcome to Lingo Buddy",
     startSpeaking: "Start speaking and get feedback in your learning language!",
     nativeLangLabel: "Native Language",
     learningLangLabel: "Learning Language",
@@ -83,8 +89,9 @@ const translations = {
     currentViseme: "Current Viseme:",
   },
   es: {
-    welcome: "Bienvenido a GlobalLang",
-    startSpeaking: "¡Comienza a hablar y recibe retroalimentación en tu idioma de aprendizaje!",
+    welcome: "Bienvenido a Lingo Buddy",
+    startSpeaking:
+      "¡Comienza a hablar y recibe retroalimentación en tu idioma de aprendizaje!",
     nativeLangLabel: "Idioma Nativo",
     learningLangLabel: "Idioma de Aprendizaje",
     startRecording: "Iniciar Grabación",
@@ -92,8 +99,9 @@ const translations = {
     currentViseme: "Visema Actual:",
   },
   fr: {
-    welcome: "Bienvenue à GlobalLang",
-    startSpeaking: "Commencez à parler et obtenez des retours dans votre langue d'apprentissage !",
+    welcome: "Bienvenue à Lingo Buddy",
+    startSpeaking:
+      "Commencez à parler et obtenez des retours dans votre langue d'apprentissage !",
     nativeLangLabel: "Langue Maternelle",
     learningLangLabel: "Langue Apprise",
     startRecording: "Commencer l'enregistrement",
@@ -101,8 +109,9 @@ const translations = {
     currentViseme: "Visème Actuel :",
   },
   de: {
-    welcome: "Willkommen bei GlobalLang",
-    startSpeaking: "Beginnen Sie zu sprechen und erhalten Sie Feedback in Ihrer Lernsprache!",
+    welcome: "Willkommen bei Lingo Buddy",
+    startSpeaking:
+      "Beginnen Sie zu sprechen und erhalten Sie Feedback in Ihrer Lernsprache!",
     nativeLangLabel: "Muttersprache",
     learningLangLabel: "Lernsprache",
     startRecording: "Aufnahme starten",
@@ -124,10 +133,14 @@ export default function Home() {
   const [learnflagSrc, setLearnSrc] = useState("spain.png");
   const [nativeLang, setNativeLang] = useState("English");
   const [learningLang, setLearningLang] = useState("Spanish");
+  const [tutorName, setTutorName] = useState("Javier");
   const [isRecording, setIsRecording] = useState(false);
   const [currentViseme, setCurrentViseme] = useState("Neutral");
   const [animationIndexLearned, setAnimationIndexL] = useState(1);
-  const [transcript, setTranscript] = useState("");
+  const [conversations, setConversations] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [showTitle, setShowTitle] = useState(true);
+  const [convoNumber, setConvoNumber] = useState(0);
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -137,12 +150,18 @@ export default function Home() {
     "SpanishC.png",
     "FrenchC.png",
     "DutchC.png",
+    "JapaneseC.png",
+    "ChineseC.png",
   ];
 
   // Determine current translation object from nativeLang
   const nativeCode = langNameToCode[nativeLang] || "en";
   const t = translations[nativeCode];
+  const endRef = useRef(null);
 
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversations]);
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mediaRecorder = new MediaRecorder(stream);
@@ -180,8 +199,24 @@ export default function Home() {
     });
 
     const result = await response.json();
-    setTranscript(result.ai_response);
 
+    setConversations((prev) => {
+    const updatedConversations = [...prev];
+
+
+    const currentConvo = updatedConversations[convoNumber];
+    const updatedConvo = {
+      ...currentConvo, 
+      messages: [     
+        ...currentConvo.messages,
+        { you: result.transcript, tutor: result.ai_response }
+      ]
+    };
+    updatedConversations[convoNumber] = updatedConvo;
+
+    // 5. Return the fully updated array of conversations
+    return updatedConversations;
+  });
     const audioBytes = Uint8Array.from(atob(result.audio_base64), (c) =>
       c.charCodeAt(0)
     );
@@ -235,14 +270,23 @@ export default function Home() {
         break;
       case "fr":
         setNativeSrc("france.png");
-        setNativeLang("France");
+        setNativeLang("French");
         break;
       case "de":
         setNativeSrc("netherlands.png");
         setNativeLang("Dutch");
         break;
+      case "ja":
+        setNativeSrc("japan.png");
+        setNativeLang("Japanese");
+        break;
+      case "zh":
+        setNativeSrc("chinese.png");
+        setNativeLang("Chinese");
+        break;
     }
   };
+
   const changeLearn = (e) => {
     const value = e.target.value;
     switch (value) {
@@ -250,141 +294,177 @@ export default function Home() {
         setLearnSrc("united-kingdom.png");
         setLearningLang("English");
         setAnimationIndexL(0);
+        setTutorName("Emily");
         break;
       case "es":
         setLearnSrc("spain.png");
         setLearningLang("Spanish");
         setAnimationIndexL(1);
+        setTutorName("Javier");
         break;
       case "fr":
         setLearnSrc("france.png");
-        setLearningLang("France");
+        setLearningLang("French");
         setAnimationIndexL(2);
+        setTutorName("Camille");
         break;
       case "de":
         setLearnSrc("netherlands.png");
         setLearningLang("Dutch");
         setAnimationIndexL(3);
+        setTutorName("Daan");
+        break;
+      case "ja":
+        setLearnSrc("japan.png");
+        setLearningLang("Japanese");
+        setAnimationIndexL(4);
+        setTutorName("Haruka");
+        break;
+      case "zh":
+        setLearnSrc("chinese.png");
+        setLearningLang("Chinese");
+        setAnimationIndexL(5);
+        setTutorName("Li Wei");
         break;
     }
   };
+const handleSubmit = (e) => {
+  const newConvo = {
+    messages: [],
+    nativeLang: nativeLang,
+    learningLang: learningLang,
+    tutorName: tutorName,
+    nativeflagSrc: nativeflagSrc,
+    learnflagSrc: learnflagSrc,
+    animationIndexLearned: animationIndexLearned
+  }
+ setConversations((prev) => {
+  const newConversations = [...prev, newConvo];
+  setConvoNumber(newConversations.length - 1);
+  return newConversations;
+});
+setShowTitle(false);
+};
+  const newChat = (e) => {
+    e.preventDefault();
+    setShowTitle(true);
+    
+  }
+  const selectChat = (index) => {
+    setConvoNumber(index);
+    const selectedConvo = conversations[index];
+     setNativeLang(selectedConvo.nativeLang);
+  setLearningLang(selectedConvo.learningLang);
+  setTutorName(selectedConvo.tutorName);
+  setNativeSrc(selectedConvo.nativeflagSrc);
+  setLearnSrc(selectedConvo.learnflagSrc);
+   setShowTitle(false);
+   setAnimationIndexL(selectedConvo.animationIndexLearned);
+  }
   return (
-    <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      {/* 🧭 Top Navbar */}
-      <nav
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "1rem 2rem",
-          backgroundColor: "#f5f5f5",
-        }}
-        className="relative border-b-2 border-black z-20"
-      >
-        <span
-          style={{
-            fontWeight: "bold",
-            fontSize: "1.2rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            columnGap: "10px",
-          }}
-        >
+    <div
+      className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
+    >
+      {/* Top Navbar */}
+      <nav className="flex justify-between items-center p-4 h-1/10 bg-gray-100 border-b-2 border-black relative z-20">
+        <div className="font-bold text-xl flex items-center gap-3 bg-black rounded-2xl text-white px-2 py-1">
           <img
             src={`/${nativeflagSrc}`}
-            style={{ height: "50px", padding: "5px" }}
+            className="h-12"
+            alt="Native language flag"
           />
-          GlobalLang
+          Lingo Buddy
           <img
             src={`/${learnflagSrc}`}
-            style={{ height: "50px", padding: "5px" }}
+            className="h-12"
+            alt="Learning language flag"
           />
-        </span>
-      </nav>
-      <main className="h-screen  w-full">
-        <div className="flex h-full w-full absolute top-0 left-0 z-0">
-          <div className={` w-4/9 h-full relative flex items-center`}>
-            <div className="relative w-[500px] h-[500px] m-auto">
-              <img
-                src={`${animations[animationIndexLearned]}`}
-                className="absolute top-0 left-0 w-full h-full object-contain z-0"
-                alt="Face"
-              />
-              <img
-                src={visemeFrames[currentViseme] || visemeFrames["Neutral"]}
-                alt={currentViseme}
-                className="absolute z-10"
-                style={{
-                  width: "150px",
-                  top: "30%",
-                  left: "48%",
-                  transform: "translateX(-50%)",
-                }}
-              />
-            </div>
-          </div>
-          <div className="bg-slate-200 h-full w-1/9 border-slate-900 border-x-2"></div>
-          <div className="h-full w-4/9 flex justify-center items-center">
-            <div className="w-1/2 h-1/2 border-slate-900 border-2 rounded-2xl">
-              <p className="p-5 text-xl">{transcript}</p>
-            </div>
-          </div>
         </div>
-        <div className=" relative z-10 flex justify-center h-full w-full">
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <div className="bg-white rounded-2xl p-4 border-2 border-slate-900">
-              <h1
-                style={{
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  columnGap: "20px",
-                }}
-                className="xl:text-4xl md:text-xl"
-              >
-                <img
-                  src={`/${nativeflagSrc}`}
-                  style={{ height: "50px", padding: "5px" }}
-                />{" "}
-                {t.welcome}
-                <img
-                  src={`/${learnflagSrc}`}
-                  style={{ height: "50px", padding: "5px" }}
-                />
-              </h1>
-              <p className="xl:text-xl md:text-md">{t.startSpeaking}</p>
-              <div
-                style={{ display: "flex", justifyContent: "center" }}
-                className="gap-x-4 md:text-md xl:text-xl"
-              >
-                <p>{t.nativeLangLabel}</p>
-                <p>{t.learningLangLabel}</p>
+      </nav>
+
+      <main className="flex h-[90vh] transition-all duration-300">
+        {/* Left Panel - Chat Interface */}
+
+        {/* Sidebar */}
+        <div
+          className={`h-full ${
+            isOpen ? "w-96" : "w-0"
+          } bg-white border-r border-black shadow-lg flex flex-col items-center overflow-hidden transition-all duration-300 ease-in-out`}
+        >
+          {/* Sidebar content here */}
+          <form onSubmit={newChat}>
+          <button className="m-2 p-2 rounded-xl bg-gray-200 hover:bg-gray-400 text-md w-fit h-fit flex justify-center">
+            <FaPencilAlt size={24} className="mr-2"/>
+            new chat
+          </button>
+          </form>
+            {conversations.slice().reverse().map((chat, index) => {
+              const originalIndex = conversations.length - 1 - index;
+   return  <button
+      key={originalIndex}
+
+      onClick={() => selectChat(originalIndex)}
+      className={`m-2 px-4 py-2 w-full text-left rounded-md transition-colors ${
+        originalIndex === convoNumber
+          ? "bg-gray-400 text-white"
+          : "bg-gray-100 hover:bg-gray-200"
+      }`}
+    >
+      Chat {originalIndex + 1}
+    </button>
+})}
+        </div>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 bg-white hover:bg-slate-200 border border-black rounded shadow mx-2 my-4 w-fit h-fit "
+        >
+          {isOpen ? (
+            <GoSidebarCollapse size={24} />
+          ) : (
+            <GoSidebarExpand size={24} />
+          )}
+        </button>
+        <div className="w-1/2 flex flex-col items-center border-r border-black">
+          {/* Header Card */}
+         { showTitle && <div className="bg-white rounded-2xl p-6 border-2 border-slate-900 m-6 max-w-lg flex flex-col text-center">
+            <h1 className="font-bold text-2xl lg:text-4xl flex items-center justify-center gap-5 mb-3">
+              <img
+                src={`/${nativeflagSrc}`}
+                className="h-12"
+                alt="Native flag"
+              />
+              {t.welcome}
+              <img
+                src={`/${learnflagSrc}`}
+                className="h-12"
+                alt="Learning flag"
+              />
+            </h1>
+            <p className="text-lg lg:text-xl text-center mb-4">
+              {t.startSpeaking}
+            </p>
+
+            {/* Language Selection */}
+            <div className="text-center">
+              <div className="flex justify-center gap-8 mb-3 text-lg">
+                <span>{t.nativeLangLabel}</span>
+                <span>{t.learningLangLabel}</span>
               </div>
-              <div className="flex gap-4 justify-center">
+              <form className="flex gap-4 justify-center"  onSubmit={handleSubmit}>
                 <select
-                  className="xl:text-md md:text-base"
-                  style={{
-                    padding: "0.4rem 0.6rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-base"
                   defaultValue="en"
                   onChange={changeNative}
                 >
-                  <option value="en">English </option>
+                  <option value="en">English</option>
                   <option value="es">Español</option>
                   <option value="fr">Français</option>
                   <option value="de">Deutsch</option>
+                  <option value="ja">Japanese</option>
+                  <option value="zh">Chinese</option>
                 </select>
                 <select
-                  style={{
-                    padding: "0.4rem 0.6rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    fontSize: "1rem",
-                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-base"
                   defaultValue="es"
                   onChange={changeLearn}
                 >
@@ -392,35 +472,92 @@ export default function Home() {
                   <option value="es">Español</option>
                   <option value="fr">Français</option>
                   <option value="de">Deutsch</option>
+                  <option value="ja">Japanese</option>
+                  <option value="zh">Chinese</option>
                 </select>
-              </div>
-              <button
-                onClick={isRecording ? stopRecording : startRecording}
-                style={{
-                  marginTop: "2rem",
-                  padding: "1rem 2rem",
-                  fontSize: "1rem",
-                  background: isRecording ? "#e74c3c" : "#2ecc71",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                }}
-              >
-                {isRecording ? t.stopRecording : t.startRecording}
-              </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+                >
+                  Submit
+                </button>
+              </form>
             </div>
-            <div
-              style={{
-                marginTop: "2rem",
-                display: "flex",
-                justifyContent: "center",
-              }}
-            ></div>
-            <p>{t.currentViseme} {currentViseme}</p>
+          </div> }
+
+          {/* Chat Area */}
+         {!showTitle && <div className="flex-1 w-full max-w-2xl m-6 pb-6">
+            <div className="bg-gray-50 rounded-xl border border-gray-300 h-156 overflow-y-auto p-4 space-y-4">
+              {conversations[convoNumber].messages.length === 0 ? (
+                <div className="text-center text-gray-500 mt-20">
+                  Start a conversation by recording your voice!
+                </div>
+              ) : (
+                conversations[convoNumber].messages.map((pair, index) => (
+                  <div key={index} className="space-y-3">
+                    {/* User Message Bubble */}
+                    <div className="flex justify-start">
+                      <div className="max-w-xs lg:max-w-md">
+                        <div className="bg-blue-500 text-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+                          <p className="text-sm font-medium text-blue-100 mb-1">
+                            You
+                          </p>
+                          <p className="text-base">{pair.you}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tutor Message Bubble */}
+                    <div className="flex justify-end">
+                      <div className="max-w-xs lg:max-w-md">
+                        <div className="bg-green-500 text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+                          <p className="text-sm font-medium text-green-100 mb-1 text-right">
+                            {tutorName}
+                          </p>
+                          <p className="text-base">{pair.tutor}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={endRef}></div>
+            </div>
+          </div> }
+        </div>
+
+        {/* Right Panel - Avatar */}
+        <div className="w-1/2 flex flex-col items-center justify-center">
+          <div className="relative w-80 h-80 lg:w-96 lg:h-96 mb-8">
+            <img
+              src={`${animations[animationIndexLearned]}`}
+              className="absolute top-0 left-0 w-full h-full object-contain z-0"
+              alt="Tutor avatar"
+            />
+            <img
+              src={visemeFrames[currentViseme] || visemeFrames["Neutral"]}
+              alt={currentViseme}
+              className="absolute z-10 w-20 lg:w-32 top-4/15 left-1/2 transform -translate-x-1/2"
+            />
           </div>
+
+          {/* Recording Button */}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`border-2 border-black rounded-full p-6 mb-4 transition-colors duration-200 ${
+              isRecording
+                ? "bg-red-600 hover:bg-red-700 text-white"
+                : "bg-white hover:bg-gray-100 text-black"
+            }`}
+          >
+            {isRecording ? (
+              <FaStop className="w-8 h-8" />
+            ) : (
+              <FaMicrophone className="w-8 h-8" />
+            )}
+          </button>
         </div>
       </main>
-    </body>
+    </div>
   );
 }
