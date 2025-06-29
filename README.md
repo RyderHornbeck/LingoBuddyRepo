@@ -1,2 +1,2 @@
-# GlobalLangRepo
-GlobalLangRepo
+LingoBuddy 
+LingoBuddy is an intelligent AI language tutor that listens and responds to users in real time, adapting its feedback based on what they say. It gives positive reinforcement when learners are on the right track, and offers gentle, constructive nudges when mistakes are made, helping students arrive at the correct answer through guided discovery rather than immediate correction. LingoBuddy can accurately assess whether a student’s response is right or wrong, referencing past messages to build on previous knowledge to reinforce learning. Each LingoBuddy tutor is uniquely tailored to the language being learned, offering culturally relevant examples, native phrasing, and tone that reflects how the language is actually used, this makes each interaction feel natural, personalized, and immersive.​
