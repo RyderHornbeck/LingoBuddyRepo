@@ -14,9 +14,11 @@ from openai import OpenAI
 from typing import List, Dict
 import random
 import re
+from fastapi import FastAPI, Form
+from pydantic import BaseModel
 
-OPENAI_KEY = "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"
-ELEVEN_KEY = "sk_951d9a2de7e34e9a3bd33837f5685dbf70d65150ece70e56"
+OPENAI_KEY = "OpenAIKey"
+ELEVEN_KEY = "ElevenLabsKey"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
 
 
@@ -62,7 +64,7 @@ class AudioLanguageTutor:
         self.message_history = []
         self.last_lang_pair = (None, None) 
 
-    async def process_audio(self, audio_file: UploadFile, native_lang: str, learning_lang: str):
+    async def process_audio(self, audio_file: UploadFile, native_lang: str, learning_lang: str, MessageIndex: int,):
         audio_bytes = await audio_file.read()
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
             temp_audio.write(audio_bytes)
@@ -73,6 +75,7 @@ class AudioLanguageTutor:
             transcript,
             native_lang,
             learning_lang,
+            MessageIndex,
         )
         audio_b64, duration, visemes = await self.stream_tts(ai_response,learning_lang)
 
@@ -82,7 +85,6 @@ class AudioLanguageTutor:
             "audio_base64": audio_b64,
             "visemes": visemes
         }
-##Make Chat history reset change when either langauge is changed
     def transcribe_audio(self, audio_path: str, native_lang: str, learning_lang: str) -> str:
         with open(audio_path, "rb") as f:
             transcript = self.client.audio.transcriptions.create(
@@ -98,35 +100,75 @@ class AudioLanguageTutor:
 
 
 ##Make Chat history reset change when either langauge is changed
+    def get_personality_by_nationality(self, text: str):
+        people = {
+            "french": {
+                "name": "Camille",
+                "traits": "From Paris, loves baking, has a small dog, works at a bakery"
+            },
+            "english": {
+                "name": "John",
+                "traits": "From London, likes reading and tea, has a cat, works as a teacher"
+            },
+            "spanish": {
+                "name": "Javier",
+                "traits": "From Madrid, plays guitar, loves the beach, works as a tour guide"
+            },
+            "dutch": {
+                "name": "Daan",
+                "traits": "From Amsterdam, rides a bike everywhere, likes soccer, works as an engineer"
+            },
+            "chinese": {
+                "name": "Li Wei",
+                "traits": "From Beijing, enjoys calligraphy, drinks green tea, works as a software developer"
+            },
+            "japanese": {
+                "name": "Haruka",
+                "traits": "From Tokyo, loves anime and drawing, has a pet rabbit, studies graphic design"
+            }
+        }
+
+        text_lower = text.lower()
+        for nationality in people:
+            if nationality in text_lower:
+                person = people[nationality]
+                return f"{person['name']}: {person['traits']}"
+
+        return "No matching nationality found."
 
     def generate_learning_response(
         self,
         input_text: str,
         native_lang: str,
         learning_lang: str,
+        messageIndex: int,
     ) -> str:
-        # Reset history if languages change
-        current_lang_pair = (native_lang, learning_lang)
-        if current_lang_pair != self.last_lang_pair:
-            self.message_history = []
-            self.last_lang_pair = current_lang_pair
+        if not hasattr(self, "message_histories"):
+            self.message_histories = []
+
+        # Ensure the index is valid and create a new slot if necessary
+        while len(self.message_histories) <= messageIndex:
+            self.message_histories.append([])
+
+        message_history = self.message_histories[messageIndex]
 
         # Add the system prompt if history is empty
-        if not self.message_history:
-            self.message_history.append({
+        if not message_history:
+            YourPersonality = self.get_personality_by_nationality(learning_lang)
+            message_history.append({
                 "role": "system",
                 "content": (
-                    f"You are a friendly and helpful language tutor. The user is a native {native_lang} speaker and is learning {learning_lang}. "
+                    f"You are {YourPersonality}, and you are a friendly and helpful language tutor. The user is a native {native_lang} speaker and is learning {learning_lang}. "
                     f"Always respond in 2–3 short, conversational sentences with a warm tone. "
-                    f"Use a mix of {learning_lang} (with simple vocabulary) with the use of {native_lang} for scaffolding. "
-                    f"Occasionally ask them to repeat short words or phrases out loud. "
+                    f"Use a mix of {learning_lang} (with simple vocabulary) with mostly {native_lang} for scaffolding. "
+                    f"Occasionally ask them to repeat short words or phrases out loud. Only ask them if it's necessary and you haven't asked them to repeat anything in a while. "
                     f"If the user's next message sounds like they are responding to your 'repeat after me', compare what they said to the exact phrase you asked them to repeat. "
                     f"Give positive feedback if it's correct, or gently correct them if there are mistakes."
                 )
             })
 
         # Append the user's latest message
-        self.message_history.append({
+        message_history.append({
             "role": "user",
             "content": input_text
         })
@@ -134,12 +176,13 @@ class AudioLanguageTutor:
         # Get AI response with history context
         response = self.client.chat.completions.create(
             model="gpt-4o",  # Recommended for speed + accuracy
-            messages=self.message_history
+            messages=message_history
         )
 
         assistant_reply = response.choices[0].message.content
 
-        self.message_history.append({
+        # Append assistant's reply
+        message_history.append({
             "role": "assistant",
             "content": assistant_reply
         })
@@ -150,56 +193,33 @@ class AudioLanguageTutor:
 
 
 
-    def humanize_text(self,text: str) -> str:
-        filler_starters = ["Um...", "Uh...", "Like..."]
-        mid_fillers = [", uh,", ", like,", ", hmm,"]
-        end_pauses = ["...", " —", "…"]
-
-        # Split by sentences more cleanly (handles '.', '?', '!')
-        phrases = re.split(r'(?<=[.!?])\s+', text.strip())
-        humanized = []
-
-        for sentence in phrases:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
-
-            # Add a random filler to the start
-            if random.random() < 0.3:
-                sentence = f"{random.choice(filler_starters)} {sentence}"
-
-            # Add a random mid-sentence filler
-            if random.random() < 0.3 and ',' in sentence:
-                parts = sentence.split(',', 1)
-                sentence = f"{parts[0]}{random.choice(mid_fillers)}{parts[1]}"
-
-            # Add a pause to the end
-            if random.random() < 0.5:
-                sentence = sentence.rstrip('.!?') + random.choice(end_pauses)
-
-            humanized.append(sentence)
-
-        return ' '.join(humanized)
-
 
     def get_voice_id(self, language: str) -> str:
         voice_map = {
-            "france": "t8BrjWUT5Z23DLLBzbuY",
-            "english": "21m00Tcm4TlvDq8ikWAM",
+            "japanese":"3JDquces8E8bkmvbh6Bc",
+            "chinese": "bhJUNIXWQQ94l8eI2VUf",
+            "french": "DOqLhiOMs8JmafdomNTP",
+            "english": "PoPHDFYHijTq7YiSCwE3",
             "spanish": "sDh3eviBhiuHKi0MjTNq",
             "dutch": "G53Wkf3yrsXvhoQsmslL"
         }
         return voice_map.get(language.lower(), "21m00Tcm4TlvDq8ikWAM")  # default to English
 
     async def stream_tts(self, text: str, Language: str):
-      ##  humanized_text = self.humanize_text(text)
         uri = (
             f"wss://api.elevenlabs.io/v1/text-to-speech/{self.get_voice_id(Language)}/stream-input"
             f"?model_id=eleven_flash_v2_5&output_format=mp3_44100_128"
         )
-        
 
         audio_data = b""
+
+        # Set speed based on language
+        voice_settings = {
+            "stability": 0.5,
+            "similarity_boost": 0.75
+        }
+        #if Language.lower() == "french":
+         #   voice_settings["speed"] = 0.8
 
         async with websockets.connect(
             uri,
@@ -207,10 +227,7 @@ class AudioLanguageTutor:
         ) as ws:
             await ws.send(json.dumps({
                 "text": text,
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.75
-                },
+                "voice_settings": voice_settings,
                 "generation_config": {
                     "chunk_length_schedule": [120, 160, 250]
                 }
@@ -243,13 +260,16 @@ class AudioLanguageTutor:
         return audio_b64, duration_seconds, visemes
 
 
+
+
 tutor = AudioLanguageTutor(client)
 
 @app.post("/process-audio/")
 async def process_audio(
     audio: UploadFile,
     native_language: str = Form(...),
-    learning_language: str = Form(...)
+    learning_language: str = Form(...),
+    MessageIndex: int = Form(...)
 ):
-    result = await tutor.process_audio(audio, native_language, learning_language)
+    result = await tutor.process_audio(audio, native_language, learning_language, MessageIndex)
     return JSONResponse(content=result)
