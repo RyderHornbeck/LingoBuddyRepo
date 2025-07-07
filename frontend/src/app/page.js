@@ -3,12 +3,11 @@ import { useState, useRef, useEffect } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FaMicrophone } from "react-icons/fa";
 import { FaStop } from "react-icons/fa";
-import { GoSidebarCollapse } from "react-icons/go";
-import { FaRegEdit } from "react-icons/fa";
-import { GoSidebarExpand } from "react-icons/go";
-import { FaPencilAlt } from "react-icons/fa";
-
+import NavBar from "./NavBar";
+import SideBar from "./SideBar";
+import { GoSidebarCollapse, GoSidebarExpand } from "react-icons/go";
 import "./globals.css";
+import { useRouter } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -149,6 +148,12 @@ const langNameToCode = {
 };
 
 export default function Home() {
+
+  const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  
+
   const [nativeflagSrc, setNativeSrc] = useState("united-kingdom.png");
   const [learnflagSrc, setLearnSrc] = useState("spain.png");
   const [nativeLang, setNativeLang] = useState("English");
@@ -158,7 +163,7 @@ export default function Home() {
   const [currentViseme, setCurrentViseme] = useState("Neutral");
   const [animationIndexLearned, setAnimationIndexL] = useState(1);
   const [conversations, setConversations] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [showTitle, setShowTitle] = useState(true);
   const [convoNumber, setConvoNumber] = useState(0);
   const [editConvo, setEditConvo] = useState(false);
@@ -389,96 +394,51 @@ setConvoTitles((prev)  => {
    setShowTitle(false);
    setAnimationIndexL(selectedConvo.animationIndexLearned);
   }
+  useEffect(() => {
+    const token = localStorage.getItem("loggedInUser");
+    if (!token) {
+      router.replace("/LogSig");
+    } else {
+      setIsCheckingAuth(false);  // Done checking, show the main page
+    }
+  }, []);
+
+  if (isCheckingAuth) {
+    return <div>Loading...</div>;  // Or spinner
+  }
   return (
     <div
       className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}
     >
-      {/* Top Navbar */}
-      <nav className="flex justify-between items-center p-4 h-1/10 bg-gray-100 border-b-2 border-black relative z-20">
-        <div className="font-bold text-xl flex items-center gap-3 bg-black rounded-2xl text-white px-2 py-1">
-          <img
-            src={`/${nativeflagSrc}`}
-            className="h-12"
-            alt="Native language flag"
-          />
-          Lingo Buddy
-          <img
-            src={`/${learnflagSrc}`}
-            className="h-12"
-            alt="Learning language flag"
-          />
-        </div>
-      </nav>
+      <NavBar nativeflagSrc = {nativeflagSrc} learnflagSrc = {learnflagSrc}/>
 
       <main className="flex h-[90vh] transition-all duration-300">
         {/* Left Panel - Chat Interface */}
 
         {/* Sidebar */}
-        <div
-          className={`h-full ${
-            isOpen ? "w-96" : "w-0"
-          } bg-white border-r border-black shadow-lg flex flex-col items-center overflow-hidden transition-all duration-300 ease-in-out`}
-        >
-          {/* Sidebar content here */}
-          <form onSubmit={newChat}>
-          <button className="m-2 p-2 rounded-xl bg-gray-200 hover:bg-gray-400 text-md w-fit h-fit flex justify-center">
-            <FaPencilAlt size={24} className="mr-2"/>
-            new chat
-          </button>
-          </form>
-{convoTitles.slice().reverse().map((chat, index) => {
-  const originalIndex = conversations.length - 1 - index;
+        <SideBar
+  isOpen={isOpen}
+  setIsOpen={setIsOpen}
+  newChat={newChat}
+  convoTitles={convoTitles}
+  conversations={conversations}
+  convoNumber={convoNumber}
+  selectChat={selectChat}
+  editConvo={editConvo}
+  setEditConvo={setEditConvo}
+  setConvoTitles={setConvoTitles}
+/>
+  <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-2 bg-white hover:bg-slate-200 border border-black rounded shadow mx-2 my-4 w-fit h-fit "
+      >
+        {isOpen ? (
+          <GoSidebarCollapse size={24} />
+        ) : (
+          <GoSidebarExpand size={24} />
+        )}
+      </button>
 
-  return editConvo === originalIndex ? (
-    <div key={originalIndex} className="m-2 px-4 py-2 w-4/5">
-      <input
-        className="w-full border rounded px-2 py-1"
-        defaultValue={`Chat ${originalIndex + 1}`}
-  onKeyDown={(e) => {
-    if (e.key === "Enter") {
-      e.preventDefault(); // prevent form submission if inside a form
-      setEditConvo(false); // exit edit mode
-      setConvoTitles((prev) => {
-        const updated = [...prev];
-        updated[originalIndex] = e.target.value;
-        return updated;
-      })
-    }
-  }}
-      />
-    </div>
-  ) : (
-    <div key={originalIndex} className="flex items-center justify-between w-4/5 m-2">
-      <button
-        onClick={() => selectChat(originalIndex)}
-        className={`flex-1 text-left px-4 py-2 rounded-md transition-colors ${
-          originalIndex === convoNumber
-            ? "bg-gray-400 text-white"
-            : "bg-gray-100 hover:bg-gray-200"
-        }`}
-      >
-        {convoTitles[originalIndex]}
-      </button>
-      <button
-        onClick={() => setEditConvo(originalIndex)}
-        className="ml-2 text-gray-700 hover:text-black"
-      >
-        <FaRegEdit size={20} />
-      </button>
-    </div>
-  );
-})}
-        </div>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 bg-white hover:bg-slate-200 border border-black rounded shadow mx-2 my-4 w-fit h-fit "
-        >
-          {isOpen ? (
-            <GoSidebarCollapse size={24} />
-          ) : (
-            <GoSidebarExpand size={24} />
-          )}
-        </button>
         <div className="w-1/2 flex flex-col items-center border-r border-black">
           {/* Header Card */}
          { showTitle && <div className="bg-white rounded-2xl p-6 border-2 border-slate-900 m-6 max-w-lg flex flex-col text-center">
@@ -600,7 +560,7 @@ setConvoTitles((prev)  => {
           {/* Recording Button */}
          {!showTitle && <button
             onClick={isRecording ? stopRecording : startRecording}
-            className={`border-2 border-black rounded-full p-6 mb-4 transition-colors duration-200 ${
+            className={`border-2 border-black rounded-full p-6 transition-colors duration-200 ${
               isRecording
                 ? "bg-red-600 hover:bg-red-700 text-white"
                 : "bg-white hover:bg-gray-100 text-black"
