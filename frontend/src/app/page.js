@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FaMicrophone } from "react-icons/fa";
 import { FaStop } from "react-icons/fa";
+import { CiRepeat } from "react-icons/ci";
 import NavBar from "./NavBar";
 import SideBar from "./SideBar";
 import { GoSidebarCollapse, GoSidebarExpand } from "react-icons/go";
@@ -151,9 +152,7 @@ export default function Home() {
 
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-
-  
-
+  const [visemeData, setvisemeData] = useState([]);
   const [nativeflagSrc, setNativeSrc] = useState("united-kingdom.png");
   const [learnflagSrc, setLearnSrc] = useState("spain.png");
   const [nativeLang, setNativeLang] = useState("English");
@@ -168,6 +167,7 @@ export default function Home() {
   const [convoNumber, setConvoNumber] = useState(0);
   const [editConvo, setEditConvo] = useState(false);
   const [convoTitles, setConvoTitles] = useState([]);
+  const [audioURL, setAudioURL] = useState("");
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
@@ -249,11 +249,12 @@ export default function Home() {
       c.charCodeAt(0)
     );
     const audioBlob = new Blob([audioBytes], { type: "audio/mpeg" });
-    const audioURL = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioURL);
+    const url = URL.createObjectURL(audioBlob);
+    setAudioURL(url);
+    const audio = new Audio(url);
     audioRef.current = audio;
 
-    const visemeData = result.visemes;
+    setvisemeData(result.visemes);
 
     audio.addEventListener("play", () => {
       const startTime = performance.now();
@@ -285,6 +286,44 @@ export default function Home() {
     setCurrentViseme("Neutral");
     audio.play();
   };
+  const replayAudio = () => {
+  if (!audioURL) return;
+  const audio = new Audio(audioURL);
+  audioRef.current = audio;
+
+  audio.addEventListener("ended", () => {
+    clearInterval(intervalRef.current);
+    setCurrentViseme("Neutral");
+  });
+
+  audio.addEventListener("play", () => {
+    const startTime = performance.now();
+    clearInterval(intervalRef.current);
+
+    intervalRef.current = setInterval(() => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const current = visemeData.find(
+        (v) => elapsed >= v.start && elapsed <= v.end
+      );
+      if (current) {
+        const phoneme = current.char.toUpperCase();
+        const visemeKey = phonemeToViseme[phoneme] || "Neutral";
+        setCurrentViseme(visemeKey);
+      } else {
+        setCurrentViseme("Neutral");
+      }
+    }, 50);
+  });
+
+  audio.play();
+};
+useEffect(() => {
+  return () => {
+    if (audioURL) {
+      URL.revokeObjectURL(audioURL);
+    }
+  };
+}, [audioURL]);
   const changeNative = (e) => {
     const value = e.target.value;
     switch (value) {
@@ -381,7 +420,10 @@ setConvoTitles((prev)  => {
   const newChat = (e) => {
     e.preventDefault();
     setShowTitle(true);
-    
+  setNativeSrc("united-kingdom.png");
+  setLearnSrc("spain.png");
+ setNativeLang("English");
+setLearningLang("Spanish");
   }
   const selectChat = (index) => {
     setConvoNumber(index);
@@ -412,7 +454,7 @@ setConvoTitles((prev)  => {
     >
       <NavBar nativeflagSrc = {nativeflagSrc} learnflagSrc = {learnflagSrc}/>
 
-      <main className="flex h-[90vh] transition-all duration-300">
+      <main className="flex h-[100vh] transition-all duration-300">
         {/* Left Panel - Chat Interface */}
 
         {/* Sidebar */}
@@ -439,7 +481,7 @@ setConvoTitles((prev)  => {
         )}
       </button>
 
-        <div className="w-1/2 flex flex-col items-center border-r border-black">
+        <div className="w-1/2 flex flex-col  items-center border-r border-black">
           {/* Header Card */}
          { showTitle && <div className="bg-white rounded-2xl p-6 border-2 border-slate-900 m-6 max-w-lg flex flex-col text-center">
             <h1 className="font-bold text-2xl lg:text-4xl flex items-center justify-center gap-5 mb-3">
@@ -501,7 +543,7 @@ setConvoTitles((prev)  => {
           </div> }
 
           {/* Chat Area */}
-         {!showTitle && <div className="flex-1 min-w-4/5 max-w-2xl m-6 pb-6">
+         {!showTitle && <div className="flex-1 min-w-4/5 max-w-2xl mt-6 pb-6">
             <div className="bg-gray-50 rounded-xl border border-gray-300 h-156 overflow-y-auto p-4 space-y-4">
               {conversations[convoNumber].messages.length === 0 ? (
                 <div className="text-center text-gray-500 mt-20">
@@ -543,7 +585,6 @@ setConvoTitles((prev)  => {
 
         {/* Right Panel - Avatar */}
         <div className="w-1/2 flex flex-col items-center justify-center">
-              <h2 className="font-bold text-xl">{tutorName} the {learningLang} tutor</h2>
           <div className="relative w-80 h-80 lg:w-96 lg:h-96 mb-8">
             <img
               src={`${animations[animationIndexLearned]}`}
@@ -558,7 +599,7 @@ setConvoTitles((prev)  => {
           </div>
 
           {/* Recording Button */}
-         {!showTitle && <button
+         {!showTitle && <div className="relative w-full h-24"> <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2"> <button
             onClick={isRecording ? stopRecording : startRecording}
             className={`border-2 border-black rounded-full p-6 transition-colors duration-200 ${
               isRecording
@@ -571,8 +612,9 @@ setConvoTitles((prev)  => {
             ) : (
               <FaMicrophone className="w-8 h-8" />
             )}
-          </button> }
+          </button> </div> <div className="absolute right-[20%] top-1/2 transform -translate-y-1/2 ">{audioURL && (<button onClick={replayAudio}> <CiRepeat className="w-12 h-12 rounded-2xl border-2 border-black"  /></button>)} </div></div> }
         </div>
+        
       </main>
     </div>
   );
